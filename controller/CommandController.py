@@ -54,7 +54,7 @@ class CommandController:
         ollama_url = "http://"+":".join(env_tuple)
         xml_string = xml_controller.get_xml_data()
         request_dict = {
-            "model": "qwen2.5-coder:7b",
+            "model": "qwen2.5-coder:14b",
             "messages": [
                 {
                     "role": "system",
