@@ -8,3 +8,5 @@ python-multipart
 nvidia-cublas-cu12
 nvidia-cudnn-cu12
 python-dotenv
+kokoro
+soundfile

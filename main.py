@@ -1,9 +1,11 @@
+import base64
 from pathlib import Path
 
 import fastapi
-from fastapi import FastAPI, Form
+from fastapi import FastAPI, Form, Query
 import uvicorn
 
+from controller.AudioSynthController import AudioSynthController
 from controller.CommandController import CommandController
 from controller.XMLController import XMLController
 from fastapi import FastAPI, UploadFile, File
@@ -12,6 +14,7 @@ from faster_whisper import WhisperModel
 import torch
 import shutil
 import os
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 
 dotenv_path = Path('config/.env')
@@ -53,9 +56,44 @@ async def process_command(scene_id: str = Form(...),xml_data: str = Form(...), f
         controller = CommandController()
         xml_controller = XMLController(xml_data)
         command = await controller.transcribe_audio(file)
-        return await controller.process_command(command['text'], xml_controller,scene_id)
+        res, audio_response = await controller.process_command(command['text'], xml_controller,scene_id)
+        # Se 'audio_source' for um async generator, consuma os bytes dele
+        audio_bytes = b""
+
+        # Verifica se o que voltou é de fato uma StreamingResponse (ou objeto similar com body_iterator)
+        if hasattr(audio_response, "body_iterator"):
+            # O iterador pode ser assíncrono ou síncrono dependendo de como o TTS foi gerado
+            if hasattr(audio_response.body_iterator, "__anext__"):
+                async for chunk in audio_response.body_iterator:
+                    audio_bytes += chunk
+            else:
+                for chunk in audio_response.body_iterator:
+                    audio_bytes += chunk
+        elif isinstance(audio_response, bytes):
+            audio_bytes = audio_response
+        else:
+            # Fallback caso seja um arquivo ou outro tipo de stream bruto
+            audio_bytes = audio_response.read()
+
+        # Converte os bytes coletados para string Base64
+        audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        return {
+            'response': res,
+            'audio': audio_base64
+        }
     except Exception as e:
         return {"error": str(e)}
+@app.get("/to-speech")
+async def stream_audio(
+    text: str = Query(..., description="The text to convert to speech"),
+    voice: str = Query("pf_dora", description="Voice profile to use (e.g.,pf_dora, af_bella, am_adam)")
+):
+    controller = AudioSynthController()
+    def audio_streamer():
+        for chunk in controller.generate_audio_chunks(text, voice):
+            yield chunk
+
+    return StreamingResponse(audio_streamer(), media_type="audio/wav")
 async def update_json(data: dict):
     pass
 if __name__ == "__main__":

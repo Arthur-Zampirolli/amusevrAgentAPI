@@ -3,6 +3,8 @@ from time import sleep
 import fastapi
 from fastapi import FastAPI, HTTPException
 import uvicorn
+
+from controller.AudioSynthController import AudioSynthController
 from controller.XMLController import XMLController
 from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
@@ -53,6 +55,7 @@ class CommandController:
         env_tuple= (os.environ.get("OLLAMA_API_URL"),os.environ.get("PORT"))
         ollama_url = "http://"+":".join(env_tuple)
         xml_string = xml_controller.get_xml_data()
+        audio_controller = AudioSynthController()
         request_dict = {
             "model": "qwen2.5-coder:14b",
             "messages": [
@@ -94,7 +97,9 @@ class CommandController:
             dados_finais['xml_final'] = xml_controller.get_xml_data()
             dados_finais['id_cena_alvo'] = scene_id
             # 4. Retorna a estrutura para o frontend (que usará a 'fala_usuario' no TTS)
-            return dados_finais
+            audio = await audio_controller.synth_audio(dados_finais['fala_usuario'], os.environ.get('VOICE'))
+            #dados_finais['file'] = audio
+            return dados_finais, audio
 
         except requests.exceptions.RequestException as e:
             raise HTTPException(status_code=503, detail=f"Erro de comunicação com o Ollama: {e}")
