@@ -77,9 +77,9 @@ async def process_command(scene_id: str = Form(...),xml_data: str = Form(...), f
 
         # Converte os bytes coletados para string Base64
         audio_base64 = base64.b64encode(audio_bytes).decode('utf-8')
+        res["audio"] = audio_base64
         return {
             'response': res,
-            'audio': audio_base64
         }
     except Exception as e:
         return {"error": str(e)}
