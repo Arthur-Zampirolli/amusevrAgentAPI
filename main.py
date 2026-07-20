@@ -1,32 +1,23 @@
 import base64
 from pathlib import Path
 
-import fastapi
-from fastapi import FastAPI, Form, Query
+from fastapi import Form, Query
 import uvicorn
 
 from controller.AudioSynthController import AudioSynthController
 from controller.CommandController import CommandController
 from controller.XMLController import XMLController
 from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
-from faster_whisper import WhisperModel
-import torch
-import shutil
-import os
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
+from config.helpers.ConfigHelper import ConfigHelper
 
 dotenv_path = Path('config/.env')
 load_dotenv(dotenv_path=dotenv_path)
 app = FastAPI()
 
 #rotear a chamada de envio do xml
-@app.post("/send-xml")
-async def send_xml(data: dict):
-    print(f"Received XML: {data['xml_data']}")
-    print(f"Voice: {data['voice']}")
-    return {"message": "XML sent successfully"}
+
 @app.post("/update-xml")
 async def update_xml(data: dict):
     print(f"Received XML: {data['xml_data']}")
@@ -43,9 +34,9 @@ async def update_xml(data: dict):
         "json": data
     }
 #receber comando de voz e realizar a conversão para texto, chamar o agente e atualizar o xml
-@app.post("/transcribe")
+@app.post("/transcribe-audio")
 async def transcribe_audio(file: UploadFile = File(...)):
-    controller = CommandController()
+    controller = CommandController(ConfigHelper())
     return await controller.transcribe_audio(file)
 
 @app.post("/process-command")
@@ -53,7 +44,7 @@ async def process_command(scene_id: str = Form(...),xml_data: str = Form(...), f
     try:
         print(f"Received XML: {xml_data}")
         #scene_id = data["scene_id"]
-        controller = CommandController()
+        controller = CommandController(ConfigHelper())
         xml_controller = XMLController(xml_data)
         command = await controller.transcribe_audio(file)
         res, audio_response = await controller.process_command(command['text'], xml_controller,scene_id)
@@ -84,7 +75,7 @@ async def process_command(scene_id: str = Form(...),xml_data: str = Form(...), f
     except Exception as e:
         return {"error": str(e)}
 @app.get("/to-speech")
-async def stream_audio(
+async def to_speech(
     text: str = Query(..., description="The text to convert to speech"),
     voice: str = Query("pf_dora", description="Voice profile to use (e.g.,pf_dora, af_bella, am_adam)")
 ):
@@ -94,7 +85,8 @@ async def stream_audio(
             yield chunk
 
     return StreamingResponse(audio_streamer(), media_type="audio/wav")
-async def update_json(data: dict):
+@app.get("/suggest-effects")
+async def suggest_effects(data: dict):
     pass
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

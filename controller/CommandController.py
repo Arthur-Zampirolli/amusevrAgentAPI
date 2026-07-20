@@ -1,13 +1,10 @@
 from time import sleep
 
-import fastapi
-from fastapi import FastAPI, HTTPException
-import uvicorn
+from fastapi import HTTPException
 
+from config.helpers.ConfigHelper import ConfigHelper
 from controller.AudioSynthController import AudioSynthController
 from controller.XMLController import XMLController
-from fastapi import FastAPI, UploadFile, File
-from fastapi.middleware.cors import CORSMiddleware
 from faster_whisper import WhisperModel
 import torch
 import shutil
@@ -16,28 +13,37 @@ import requests
 import json
 
 class CommandController:
-    def __init__(self):
+    def __init__(self, config:ConfigHelper):
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
         #self.device = "cpu"
-        self.model = WhisperModel("large-v3", device=self.device, compute_type="float16" if self.device == "cuda" else "int8")
-        #self.env = env
+        #precision = "float16" if self.device == "cuda" else "int8"
+        #precision = "int8"
+        self.config = config
+        self.model = WhisperModel(self.config.whisper_model, device=self.device, compute_type=self.config.whisper_precision)
     async def transcribe_audio(self, file):
+        try:
+            if self.config.offload_level < 1:
 
-        temp_filename = f"debug_{file.filename}"
-        with open(temp_filename, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
+                temp_filename = f"debug_{file.filename}"
+                with open(temp_filename, "wb") as buffer:
+                    shutil.copyfileobj(file.file, buffer)
 
-        segments, info = self.model.transcribe(temp_filename, beam_size=5)
+                segments, info = self.model.transcribe(temp_filename, beam_size=5)
 
-        full_text = "".join([segment.text for segment in segments])
+                full_text = "".join([segment.text for segment in segments])
 
-        print(f"Transcrição concluída: {full_text}")
+                print(f"Transcrição concluída: {full_text}")
 
-        return {
-            "text": full_text.strip(),
-            "language": info.language,
-            "probability": info.language_probability
-        }
+                return {
+                    "text": full_text.strip(),
+                    "language": info.language,
+                    "probability": info.language_probability
+                }
+            else:
+                resp = requests.post()
+        except Exception as e:
+            print(e)
+            raise HTTPException(status_code=500, detail=f"Erro interno no processamento: {e}")
     def clean_dados_ia(self, dados_ia: str):
         # 1. Limpa qualquer formatação de bloco de código Markdown que a IA tenha gerado
         dados_ia_limpo = dados_ia.strip()
@@ -50,9 +56,10 @@ class CommandController:
 
         dados_ia_limpo = dados_ia_limpo.strip()
         return dados_ia_limpo
+
     async def process_command(self, command: str, xml_controller:XMLController, scene_id):
         #chama o ollama com alguns parâmetros
-        env_tuple= (os.environ.get("OLLAMA_API_URL"),os.environ.get("PORT"))
+        env_tuple= (self.config.ollama_api_url,self.config.ollama_port)
         ollama_url = "http://"+":".join(env_tuple)
         xml_string = xml_controller.get_xml_data()
         audio_controller = AudioSynthController()
