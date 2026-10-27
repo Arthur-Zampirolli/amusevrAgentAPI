@@ -6,6 +6,7 @@ import uvicorn
 
 from controller.AudioSynthController import AudioSynthController
 from controller.CommandController import CommandController
+from controller.SensorySynchController import SensorySynchController
 from controller.XMLController import XMLController
 from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
@@ -87,6 +88,14 @@ async def to_speech(
     return StreamingResponse(audio_streamer(), media_type="audio/wav")
 @app.get("/suggest-effects")
 async def suggest_effects(data: dict):
-    pass
+    controlller = SensorySynchController(ConfigHelper())
+    return await controlller.upload_video(video_bytes=data['video_bytes'], modules=data['modules'],
+    user_id=data['user_id'], mime_type=data['mime_type'])  
+@app.get("/get-modules-status")
+async def get_modules_status(
+    user_id: str = Query(..., description="job_uid retornado por /suggest-effects")
+):
+    controller = SensorySynchController(ConfigHelper())
+    return await controller.get_modules_status(job_uid=user_id)
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)

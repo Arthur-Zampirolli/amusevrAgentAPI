@@ -11,6 +11,8 @@ class ConfigHelper:
         self.offload_level = int(os.environ.get("OFFLOAD_LEVEL"))
         self.whisper_model = os.environ.get("WHISPER_MODEL")
         self.whisper_precision = os.environ.get("WHISPER_PRECISION")
+        self.sensorysynch_api_url = os.environ.get("SENSORYSYNCH_API_URL", "127.0.0.1")
+        self.sensorysynch_api_port = os.environ.get("SENSORYSYNCH_API_PORT", "8007")
     def show_config(self):
 
         print(self.ollama_api_url)
