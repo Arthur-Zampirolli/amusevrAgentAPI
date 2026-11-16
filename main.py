@@ -1,17 +1,19 @@
 import base64
 from pathlib import Path
 
-from fastapi import Form, Query
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, UploadFile
 import uvicorn
 
 from controller.AudioSynthController import AudioSynthController
 from controller.CommandController import CommandController
 from controller.SensorySynchController import SensorySynchController
 from controller.XMLController import XMLController
-from fastapi import FastAPI, UploadFile, File
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 from config.helpers.ConfigHelper import ConfigHelper
+import time
+import asyncio
+import os
 
 dotenv_path = Path('config/.env')
 load_dotenv(dotenv_path=dotenv_path)
@@ -86,16 +88,69 @@ async def to_speech(
             yield chunk
 
     return StreamingResponse(audio_streamer(), media_type="audio/wav")
-@app.get("/suggest-effects")
-async def suggest_effects(data: dict):
-    controlller = SensorySynchController(ConfigHelper())
-    return await controlller.upload_video(video_bytes=data['video_bytes'], modules=data['modules'],
-    user_id=data['user_id'], mime_type=data['mime_type'])  
+@app.post("/suggest-effects")
+async def suggest_effects(data: dict = Body(...)):
+    video_data = data.get("video")
+    if not isinstance(video_data, str) or not video_data:
+        raise HTTPException(status_code=400, detail="Campo 'video' (base64) é obrigatório")
+
+    mime_type = data.get("mime_type")
+    if video_data.startswith("data:"):
+        header, _, encoded = video_data.partition(",")
+        if not encoded:
+            raise HTTPException(status_code=400, detail="Formato de data URL inválido em 'video'")
+        if not mime_type and ":" in header and ";" in header:
+            mime_type = header.split(":", 1)[1].split(";", 1)[0]
+        video_data = encoded
+
+    try:
+        video_bytes = base64.b64decode(video_data, validate=True)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Campo 'video' não é um base64 válido")
+
+    controller = SensorySynchController(ConfigHelper())
+    res = await controller.upload_video(
+        video_bytes=video_bytes,
+        modules=data.get("modules"),
+        user_id=data.get("user_id"),
+        mime_type=mime_type,
+    )
+    job_uid = res.get("job_uid")
+    print(f"Job UID: {job_uid}")
+
+    get_modules_status = {}
+    max_tentativas = int(os.getenv("MAX_ATTEMPTS"))  # Ex: 30 * 10s = 5 minutos máximo de espera
+
+    for tentativa in range(max_tentativas):
+        try:
+            get_modules_status = await controller.get_modules_status(job_uid=job_uid)
+            print(f"[{tentativa + 1}/{max_tentativas}] Modules Status: {get_modules_status}")
+
+            # Garante que o dicionário não está vazio e verifica se TODOS os módulos têm status == '100'
+            if get_modules_status and all(
+                isinstance(modulo, dict) and str(modulo.get("status")) == "100"
+                for modulo in get_modules_status.values()
+            ):
+                print("Todos os módulos concluídos com status 100!")
+                break
+
+        except Exception as e:
+            print(f"Error fetching modules status: {e}")
+            raise HTTPException(status_code=502, detail=f"Erro ao consultar status dos módulos: {e}")
+
+        await asyncio.sleep(10)  # Não bloqueia o event loop do FastAPI
+    else:
+        raise HTTPException(status_code=504, detail="Tempo limite excedido aguardando processamento dos módulos")
+
+    return {
+        "response": res,
+        "modules_status": get_modules_status
+    }
 @app.get("/get-modules-status")
 async def get_modules_status(
-    user_id: str = Query(..., description="job_uid retornado por /suggest-effects")
+    job_uid: str = Query(..., description="job_uid retornado por /suggest-effects")
 ):
     controller = SensorySynchController(ConfigHelper())
-    return await controller.get_modules_status(job_uid=user_id)
+    return await controller.get_modules_status(job_uid=job_uid)
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
