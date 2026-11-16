@@ -6,7 +6,7 @@ API em FastAPI para processamento de comandos de voz, atualização de XML Multi
 
 - Python 3.12+
 - Dependências em `requirements.txt`
-- (Opcional, conforme uso) Ollama, modelos Whisper/Kokoro e serviço SensorySynch360 acessível
+- Ollama, modelos Whisper/Kokoro e serviço SensorySynch360 acessível
 
 ## Instalação
 
