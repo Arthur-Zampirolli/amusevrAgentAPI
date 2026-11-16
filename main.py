@@ -144,7 +144,8 @@ async def suggest_effects(data: dict = Body(...)):
 
     return {
         "response": res,
-        "modules_status": get_modules_status
+        "modules_status": get_modules_status,
+        "xml_data": controller.parse_to_xml(get_modules_status)
     }
 @app.get("/get-modules-status")
 async def get_modules_status(

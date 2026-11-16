@@ -5,6 +5,7 @@ import requests
 from fastapi import HTTPException
 
 from config.helpers.ConfigHelper import ConfigHelper
+from adapters.SensorySyncToMultiSel import MultiSelParser
 
 VALID_MODULES = [
     "effectLocalization",
@@ -81,3 +82,16 @@ class SensorySynchController:
             raise HTTPException(status_code=503, detail=f"Erro de comunicação com o SensorySynch360: {e}")
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
+    def parse_to_xml(self, modules_status: dict) -> str:
+        parser = MultiSelParser(
+            project_id="Project-1",
+            title="MultiSEL for AMUSE VR",
+            author=getattr(self.config, "author", "") or "",
+            year=str(getattr(self.config, "year", "") or ""),
+            # time_unit="frames", fps=... se as chaves de tempo forem frames
+        )
+        return parser.convert(
+            modules_status,
+            video_src=modules_status.get("video_name", "video.mp4"),
+            video_duration=modules_status.get("video_duration"),
+        )
