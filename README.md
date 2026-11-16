@@ -61,8 +61,8 @@ A API sobe por padrão em `http://0.0.0.0:8000`.
 | `POST` | `/transcribe-audio` | Transcreve um arquivo de áudio (multipart `file`). |
 | `POST` | `/process-command` | Transcreve áudio, processa comando com o agente e atualiza o XML (multipart: `scene_id`, `xml_data`, `file`). |
 | `GET` | `/to-speech` | Converte texto em áudio WAV (`text`, `voice`). |
-| `POST` | `/suggest-effects` | Envia vídeo (base64) ao SensorySynch360 e retorna o último status do job. |
-| `GET` | `/get-modules-status` | Consulta status de um job (`user_id=<job_uid>` retornado por `/suggest-effects`). |
+| `POST` | `/suggest-effects` | Envia vídeo (base64) ao SensorySynch360 e retorna o resultado do job. |
+| `GET` | `/get-modules-status` | Consulta status de um job (`user_id=<job_uid>` retornado por `/suggest-effects`). Em breve será ajustado para atualizar por um delta time. |
 
 ### Exemplo: `/suggest-effects`
 
